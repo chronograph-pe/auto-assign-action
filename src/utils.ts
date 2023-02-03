@@ -29,17 +29,24 @@ export async function getTeams(
 ): Promise<string[]> {
   const { useTeams, teams = [] } = config
   if (!useTeams) return []
-  const { repository_owner } = github.context
+  console.log('context', github.context)
+  const { owner: repositoryOwner } = github.context.repo
+  console.log('repositoryOwner', repositoryOwner)
+  const { data: orgTeams } = await client.teams.list({ org: repositoryOwner })
+  console.log('orgTeams', orgTeams)
+  const teamIdByName = _.fromPairs(orgTeams.map(team => [team.name, team.id]))
   const ownerTeams: string[] = []
-  for await (const team of teams) {
-    console.log('team', team)
-    const teamMembers = await client.teams.listMembersInOrg({
-      repository_owner,
-      team_slug: team,
-    })
-    console.log('teamMembers', teamMembers)
-    if (teamMembers.find(member => member.login === owner)) {
-      ownerTeams.push(team)
+  for await (const teamName of teams) {
+    console.log('teamName', teamName)
+    const teamId = teamIdByName[teamName]
+    if (teamId) {
+      const { data: teamMembers } = await client.teams.listMembers({
+        team_id: teamId,
+      })
+      console.log('teamMembers', teamMembers)
+      if (teamMembers.find(member => member.login === owner)) {
+        ownerTeams.push(teamName)
+      }
     }
   }
   return ownerTeams
