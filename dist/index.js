@@ -86,8 +86,9 @@ function handlePullRequest(client, context, config) {
         if (addReviewers) {
             try {
                 const reviewers = utils.chooseReviewers(owner, config);
-                if (reviewers.length > 0) {
-                    yield pr.addReviewers(reviewers);
+                const teamReviewers = yield utils.getTeams(client, owner, config);
+                if (reviewers.length > 0 || teamReviewers.length > 0) {
+                    yield pr.addReviewers(reviewers, teamReviewers);
                     core.info(`Added reviewers to PR #${number}: ${reviewers.join(', ')}`);
                 }
             }
@@ -163,7 +164,7 @@ class PullRequest {
         this.client = client;
         this.context = context;
     }
-    addReviewers(reviewers) {
+    addReviewers(reviewers = [], team_reviewers = []) {
         return __awaiter(this, void 0, void 0, function* () {
             const { owner, repo, number: pull_number } = this.context.issue;
             const result = yield this.client.pulls.createReviewRequest({
@@ -171,6 +172,7 @@ class PullRequest {
                 repo,
                 pull_number,
                 reviewers,
+                team_reviewers,
             });
             core.debug(JSON.stringify(result));
         });
@@ -309,12 +311,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.fetchConfigurationFile = exports.chooseUsersFromGroups = exports.includesSkipKeywords = exports.chooseUsers = exports.chooseAssignees = exports.chooseReviewers = void 0;
+exports.fetchConfigurationFile = exports.chooseUsersFromGroups = exports.includesSkipKeywords = exports.chooseUsers = exports.chooseAssignees = exports.getTeams = exports.chooseReviewers = void 0;
 const lodash_1 = __importDefault(__nccwpck_require__(250));
+const github = __importStar(__nccwpck_require__(5438));
 const yaml = __importStar(__nccwpck_require__(1917));
 function chooseReviewers(owner, config) {
     const { useReviewGroups, reviewGroups, numberOfReviewers, reviewers } = config;
@@ -329,6 +339,53 @@ function chooseReviewers(owner, config) {
     return chosenReviewers;
 }
 exports.chooseReviewers = chooseReviewers;
+function getTeams(client, owner, config) {
+    var _a, e_1, _b, _c;
+    return __awaiter(this, void 0, void 0, function* () {
+        const { useTeams, teams = [] } = config;
+        if (!useTeams)
+            return [];
+        console.log('context', github.context);
+        const { owner: repositoryOwner } = github.context.repo;
+        console.log('repositoryOwner', repositoryOwner);
+        const { data: orgTeams } = yield client.teams.list({ org: repositoryOwner });
+        console.log('orgTeams', orgTeams);
+        const teamIdByName = lodash_1.default.fromPairs(orgTeams.map(team => [team.name, team.id]));
+        const ownerTeams = [];
+        try {
+            for (var _d = true, teams_1 = __asyncValues(teams), teams_1_1; teams_1_1 = yield teams_1.next(), _a = teams_1_1.done, !_a;) {
+                _c = teams_1_1.value;
+                _d = false;
+                try {
+                    const teamName = _c;
+                    console.log('teamName', teamName);
+                    const teamId = teamIdByName[teamName];
+                    if (teamId) {
+                        const { data: teamMembers } = yield client.teams.listMembers({
+                            team_id: teamId,
+                        });
+                        console.log('teamMembers', teamMembers);
+                        if (teamMembers.find(member => member.login === owner)) {
+                            ownerTeams.push(teamName);
+                        }
+                    }
+                }
+                finally {
+                    _d = true;
+                }
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (!_d && !_a && (_b = teams_1.return)) yield _b.call(teams_1);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        return ownerTeams;
+    });
+}
+exports.getTeams = getTeams;
 function chooseAssignees(owner, config) {
     const { useAssigneeGroups, assigneeGroups, addAssignees, numberOfAssignees, numberOfReviewers, assignees, reviewers, } = config;
     let chosenAssignees = [];
