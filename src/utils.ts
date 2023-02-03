@@ -22,6 +22,29 @@ export function chooseReviewers(owner: string, config: Config): string[] {
   return chosenReviewers
 }
 
+export async function getTeams(
+  client: github.GitHub,
+  owner: string,
+  config: Config
+): Promise<string[]> {
+  const { useTeams, teams = [] } = config
+  if (!useTeams) return []
+  const { repository_owner } = github.context
+  const ownerTeams: string[] = []
+  for await (const team of teams) {
+    console.log('team', team)
+    const teamMembers = await client.teams.listMembersInOrg({
+      repository_owner,
+      team_slug: team,
+    })
+    console.log('teamMembers', teamMembers)
+    if (teamMembers.find(member => member.login === owner)) {
+      ownerTeams.push(team)
+    }
+  }
+  return ownerTeams
+}
+
 export function chooseAssignees(owner: string, config: Config): string[] {
   const {
     useAssigneeGroups,

@@ -22,6 +22,8 @@ export interface Config {
   reviewGroups: { [key: string]: string[] }
   assigneeGroups: { [key: string]: string[] }
   runOnDraft?: boolean
+  useTeams: boolean
+  teams: string[]
 }
 
 export async function handlePullRequest(
@@ -100,9 +102,10 @@ export async function handlePullRequest(
   if (addReviewers) {
     try {
       const reviewers = utils.chooseReviewers(owner, config)
+      const teamReviewers = await utils.getTeams(client, owner, config)
 
-      if (reviewers.length > 0) {
-        await pr.addReviewers(reviewers)
+      if (reviewers.length > 0 || teamReviewers.length > 0) {
+        await pr.addReviewers(reviewers, teamReviewers)
         core.info(`Added reviewers to PR #${number}: ${reviewers.join(', ')}`)
       }
     } catch (error) {
