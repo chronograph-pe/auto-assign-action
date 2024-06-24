@@ -29,12 +29,16 @@ async function run() {
 		}
 	}
 
-	await octokit.rest.issues.addAssignees({
-		...context.repo,
-		issue_number: pullRequestNumber,
-		assignees: [authorName],
-	})
-	console.log(`Added assignee: ${authorName}`)
+	try {
+		await octokit.rest.issues.addAssignees({
+			...context.repo,
+			issue_number: pullRequestNumber,
+			assignees: [authorName],
+		})
+		console.log(`Added assignee: ${authorName}`)
+	} catch (e) {
+		console.log(`Could not add assignee: ${authorName}`)
+	}
 
 	if (authorTeams.length > 0) {
 		await octokit.rest.pulls.requestReviewers({
